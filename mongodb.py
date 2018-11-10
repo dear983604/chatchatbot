@@ -9,7 +9,7 @@ from pymongo import MongoClient
 import pymongo
 import urllib.parse
 from datetime import datetime 
-
+import pandas as pd
 
 
 # db setting
@@ -19,7 +19,6 @@ username = urllib.parse.quote_plus('chatbotdb')
 password = urllib.parse.quote_plus('YoWei19870507')
 # Authentication Database
 Authdb='chatbotdb'
-
 
 def init_db():
     client = MongoClient('mongodb://%s:%s@%s:%s/%s?authMechanism=SCRAM-SHA-1'
@@ -49,5 +48,26 @@ def find_user(userid,collection):
     coll = db[collection]
     return len(list(coll.find({"userid":userid})))
 
+def get_all_userid(collection):
+    db = init_db()
+    coll = db[collection]
+    users = list(coll.find())
+    
+    id_list = []
+    for user in users:
+        id_list.append(user['userid'])
+    
+    return id_list
 
+
+def get_ready(userid,collection):
+    db = init_db()
+    coll = db[collection]
+    unserinfo = list(coll.find({"userid":userid}))
+    return unserinfo[0]['ready']
+
+def update_byid(userid,setdict,collection):
+    db = init_db()
+    coll = db[collection]
+    coll.update({"userid":userid},{"$set":setdict}) 
 

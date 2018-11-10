@@ -18,6 +18,7 @@ from datetime import datetime
 
 # customer module
 import mongodb
+import corwler
 
 
 app = Flask(__name__)
@@ -47,7 +48,7 @@ def callback():
     return 'OK'
 
 
-@handler.add(FollowEvent)  ##在通訊管道中寫程式
+@handler.add(FollowEvent)
 def handle_follow(event):
     '''
     當使用者加入時觸動
@@ -60,8 +61,7 @@ def handle_follow(event):
     print(name)
     print(uid)
     # Udbddac07bac1811e17ffbbd9db459079
-    if mongodb.find_user(uid,'users')<= 0: 
-    ##如果>0表示裡面有陣列資料  <=0表示裡面沒資料
+    if mongodb.find_user(uid,'users')<= 0:
         # 整理資料
         dic = {'userid':uid,
                'username':name,
@@ -78,7 +78,91 @@ def handle_message(event):
     '''
     當收到使用者訊息的時候
     '''
+    profile = line_bot_api.get_profile(event.source.user_id)
+    name = profile.display_name
+    uid = profile.user_id
     message = event.message.text
+    print(name)
+    print(uid)
+    print(message)
+    
+    dic = {'userid':uid,
+       'username':name,
+       'creattime':datetime.now(),
+       'mess':message}
+    mongodb.insert_one(dic,'message')
+    
+    if mongodb.get_ready(uid,'users') ==1 :
+        mongodb.update_byid(uid,{'ready':0},'users')
+        casttext = name+' 對大家說： '+message
+        remessage = TextSendMessage(text=casttext)
+        userids = mongodb.get_all_userid('users')
+        line_bot_api.multicast(userids, remessage)
+        return 0 
+    
+    if message == '群體廣播':
+        # 設定使用者下一句話要群廣播
+        mongodb.update_byid(uid,{'ready':1},'users')
+        remessage = TextSendMessage(text='請問要廣播什麼呢?')
+        line_bot_api.reply_message(
+                        event.reply_token,
+                        remessage)
+        return 0 
+    
+    if re.search('Hi|hello|你好|ha', message, re.IGNORECASE):
+        line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=event.message.text))
+        
+        return 0 
+    
+
+    if re.search('新聞|news', event.message.text, re.IGNORECASE):
+        dic = corwler.udn_news()
+        
+        columns = []
+        for i in range(0,3):
+            carousel = CarouselColumn(
+                        thumbnail_image_url = dic[i]['img'],
+                        title = dic[i]['title'],
+                        text = dic[i]['summary'],
+                        actions=[
+                            URITemplateAction(
+                                label = '點我看新聞',
+                                uri = dic[i]['link']
+                              )
+                            ]
+                        )
+            columns.append(carousel)
+        
+        remessage = TemplateSendMessage(
+                    alt_text='Carousel template',
+                    template=CarouselTemplate(columns=columns)
+                    )
+        
+        
+        line_bot_api.reply_message(event.reply_token, remessage)
+        return 0 
+        
+    if re.search('Dcard|dcard', event.message.text, re.IGNORECASE):
+        text = corwler.Dcard()
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=text))
+        return 0 
+    
+   
+    if message == 'googlemap':
+        # 取得最新評價
+        text = corwler.google()
+        # 包裝訊息
+        remessage = TextSendMessage(text=text)
+        # 回應使用者
+        line_bot_api.reply_message(
+                        event.reply_token,
+                        remessage)
+        return 0 
+    
     
     line_bot_api.reply_message(
         event.reply_token,
